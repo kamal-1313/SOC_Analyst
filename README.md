@@ -1,408 +1,301 @@
+# Working Splunk Security Workshop YouTube Video, I will cover data ingestion for security dataset, normalizing the dataset, creating advanced visualizations and Creating Security Dashboards and some advanced splunk topics (coming soon) (MEANWHILE, all cool SPL Queries below :)
 
-```
+## YouTube channel link https://youtu.be/tMacaM1I1CI
 
-## sourcetype 
+# Add-ons to be installed
 
-vendor_sales
-access_combined_wcookie
-secure-2
-csv
+* Fortinet FortiGate Add-On for Splunk (https://splunkbase.splunk.com/app/2846/)
+* TA for Suricata (https://splunkbase.splunk.com/app/4242/)
+* Splunk Add-on for Stream Wire Data (https://splunkbase.splunk.com/app/5234/)
+* Nessus (https://splunkbase.splunk.com/app/5918/)
 
-# 1 Structure of SPL
+## Listing sourcetypes
 
-## 1.1 By Sourcetype
 ```
-index=main 
-|  stats count by sourcetype
+|  metadata type=sourcetypes index=botsv1
 ```
-<img width="1792" alt="image" src="https://user-images.githubusercontent.com/69359027/221803080-39cd70b7-5494-44e8-b762-3c4324d4a458.png">
+<img width="1750" alt="image" src="https://github.com/chirag99969/SPL/assets/69359027/3f7336b5-ba43-48e9-a550-59c07cfa5d3a">
 
 
-## 1.2 timechart command
-```
-index=main sourcetype=access_combined_wcookie status!=200 
-| timechart count
-```
-<img width="1769" alt="image" src="https://user-images.githubusercontent.com/69359027/221803843-b8fff7f8-b6c3-47c2-9c99-1cca03c436bc.png">
+## 1 EVAL command
 
+### 1.1 UC
 
-## 1.3 timechart command, also grouping by value
 ```
-index=main sourcetype=access_combined_wcookie status!=200 
-| timechart count span=1h by categoryId
+index=botsv1 sourcetype="stream:tcp"
+| eval MB = round(bytes/(1024*1024))
 ```
-<img width="1779" alt="image" src="https://user-images.githubusercontent.com/69359027/221804307-b3dfa33a-c7a7-462c-bc68-df74746efc66.png">
+<img width="1249" alt="image" src="https://github.com/chirag99969/SPL/assets/69359027/e6c3928a-ed57-4dff-98e9-ee7d4611d2d5">
 
-# 2 Basic Splunk Searches
+### 1.2 UC 
 
-## 2.1 Generate a report of nunmber of events grouped by categoryId
 ```
-index=main sourcetype=access_combined_wcookie 
-| stats count by categoryId
+index=botsv1 sourcetype=WinEventLog* EventCode=4624 
+| eval Account_Name=upper(Account_Name)
 ```
-<img width="1781" alt="image" src="https://user-images.githubusercontent.com/69359027/221805355-052cecc6-f81a-4472-81e8-402418203977.png">
+* BEFORE
+<img width="1150" alt="image" src="https://github.com/chirag99969/SPL/assets/69359027/7e707f2f-5e0e-4e5c-9e83-ecf6f3e3fd6c">
 
+* AFTER
+<img width="1272" alt="image" src="https://github.com/chirag99969/SPL/assets/69359027/4f23779f-29ee-47a4-9dfe-2353c8508dba">
 
-## 2.2 generate a report of top 10 vendorIDs for code D or E
+### 1.3 UC
+
 ```
-index=main sourcetype=vendor_sales Code=D OR Code=E
-| top VendorID
+index=botsv1 sourcetype="stream:dns" "query_type{}"=A
+| eval queryLen = len(query)
 ```
-<img width="1787" alt="image" src="https://user-images.githubusercontent.com/69359027/221807633-01a61103-06bb-4ee5-9d4a-16a7b446bec0.png">
 
+### 1.4 UC
 
-## 2.3 Retrieve all events where AcctID starts with 6 
 ```
-index=main sourcetype=vendor_sales AcctID=6*
+index=botsv1 sourcetype="fgt_traffic" 
+| eval dstcountry = if(dstcountry="United States", "United States", "International")
 ```
+<img width="1519" alt="image" src="https://github.com/chirag99969/SPL/assets/69359027/eb9686d5-a397-42c6-a050-b4c023e2c11b">
 
-## 2.4 Retrieve all events where response size is greater than 3500
-```
-index=main sourcetype="access_combined_wcookie" bytes>3500
-```
-<img width="1759" alt="image" src="https://user-images.githubusercontent.com/69359027/221808980-3a0da7b7-f9ed-4985-9524-93d60bef90a5.png">
+### 1.5 UC
 
-## 2.5 Calculate the biggest response size 
 ```
-index=main sourcetype="access_combined_wcookie" 
-| stats max(bytes)
+index=botsv1 sourcetype=stream:tcp
+| eval byte_size = case(bytes < 500, "Small", bytes < 5000, "Medium", bytes >= 5000, "Large", 1=1, "Unknown")
 ```
-<img width="719" alt="image" src="https://user-images.githubusercontent.com/69359027/221809489-9791c021-4ad8-434b-97ac-58c82d719086.png">
+<img width="1217" alt="image" src="https://github.com/chirag99969/SPL/assets/69359027/e4d38ea0-e984-491c-b822-83adc63c67b0">
 
-## 2.6 report that shows the biggest, smallest and median size of responses and total number of requests
+### 1.6 UC
 ```
-index=main sourcetype="access_combined_wcookie" 
-| stats max(bytes) as BIGGEST_RESPONSE min(bytes) as SMALLEST_RESPONSE median(bytes) as MEDIAN_RESPONSE count as total_no_requests
+index=botsv1 sourcetype=suricata
+| eval month_day=strftime(_time, "%m/%d")
 ```
-<img width="1789" alt="image" src="https://user-images.githubusercontent.com/69359027/221811019-8d306812-9477-47b6-b715-5011ce540994.png">
+<img width="1112" alt="image" src="https://github.com/chirag99969/SPL/assets/69359027/fd1ee2fc-771d-4a26-b65c-a84248e6f709">
 
-# 3 Creating Statistics (stats)
-
-## 3.1 stats UC1
+### 1.7 Fields (Interesting)
 ```
-index=main sourcetype="access_combined_wcookie"status!=200
-|  stats count by status
+index=botsv1 sourcetype=iis
+| fields _time, c_ip, s_ip
 ```
-<img width="1773" alt="image" src="https://user-images.githubusercontent.com/69359027/221812967-04227b1c-d4b6-4186-aa2b-07e5cac96560.png">
+<img width="1080" alt="image" src="https://github.com/chirag99969/SPL/assets/69359027/1cd3c04e-efac-4286-aff4-986bd3076e53">
 
-
-## 3.2 stats with eval UC2
+### 1.8 regex 
 ```
-index=main sourcetype="access_combined_wcookie" 
-| stats count(eval(status =500)) as "Internal Server Errors"
+index=botsv1 sourcetype="wineventlog*" 
+| regex Account_Name!="\w+\$"
 ```
-<img width="1099" alt="image" src="https://user-images.githubusercontent.com/69359027/221817184-13a18c32-5adb-41bd-a48e-1d7eb969e624.png">
+* BEFORE
+<img width="1161" alt="image" src="https://github.com/chirag99969/SPL/assets/69359027/bce801a2-3beb-4183-b1fd-c8cdde888422">
 
+* AFTER
+<img width="1039" alt="image" src="https://github.com/chirag99969/SPL/assets/69359027/29b1300b-7bea-498e-a5aa-0e0f2442a7cf">
 
-## 3.3 fieldsummary
-```
-index=main sourcetype="access_combined_wcookie" 
-| fieldsummary maxvals=5
-```
-<img width="1767" alt="image" src="https://user-images.githubusercontent.com/69359027/221818383-88e88e04-f995-4334-832a-0d0f523892f1.png">
+### 1.9 regex
 
-## 3.4 eventstats
 ```
-index=main sourcetype="access_combined_wcookie" 
-| timechart avg(bytes) as Response_size span=1h
-| eventstats avg(Response_size)
+index=botsv1 sourcetype=iis cs_Referer=*
+| rex field=cs_Referer "http://(?<domain>(\w+\.\w+|\d+\.\d+\.\d+\.\d+))\/"
 ```
-<img width="1772" alt="image" src="https://user-images.githubusercontent.com/69359027/221824225-aa18c7ec-da0b-45b5-8f59-e08c52a61290.png">
+<img width="1207" alt="image" src="https://github.com/chirag99969/SPL/assets/69359027/9eb006b5-6e2f-4300-9bfa-d151e8407765">
 
-
-## 3.5 streamstats
-```
-index=_internal log_level IN (WARN, ERROR)
-| stats count by component log_level
-| sort count 
-| streamstats sum(count)
-```
-<img width="1761" alt="image" src="https://user-images.githubusercontent.com/69359027/221825634-459fcd07-ef44-428d-93ea-fed89b3f1b07.png">
+# 2 Transforming Commands
 
+### 2.1 table
 
-## 3.6 streamstats (Ranking)
 ```
-index=main sourcetype=access_combined_wcookie action=purchase
-| stats count as total_purchase by itemId
-| sort 5 -total_purchase 
-| streamstats count as rank
+index=botsv1 sourcetype="fgt_traffic"  srccountry!="Reserved" dstport=23
+| table _time, srcip, srccountry, dstip, dstport, action, service
 ```
-<img width="1780" alt="image" src="https://user-images.githubusercontent.com/69359027/221832689-769a8eb3-ecac-4ce5-8a68-b67219748eed.png">
+<img width="1634" alt="image" src="https://github.com/chirag99969/SPL/assets/69359027/9883b2a2-a51b-4538-be5f-406a12c3cdf7">
 
+### 2.2 stats
 
-# 3 eval 
-
-## 3.7 eval UC1
 ```
-index=main sourcetype=access_combined_wcookie 
-| eval kbytes = round(bytes/1024, 2)
+index=botsv1 sourcetype="fgt_traffic"  srccountry!="Reserved" dstport=23
+| stats count
 ```
-<img width="1773" alt="image" src="https://user-images.githubusercontent.com/69359027/221836512-e4a9922b-d2ac-4237-83da-cf746c39f713.png">
 
-## 3.8 eval UC 2 (conditional functions)
-```
-index=main sourcetype=secure-2
-| eval result= if(like(_raw, "%Failed password%"), "failed", "success")
-```
-<img width="1539" alt="image" src="https://user-images.githubusercontent.com/69359027/221838655-3fc76e5f-fa76-44fe-8351-da7ea5e87de7.png">
+<img width="873" alt="image" src="https://github.com/chirag99969/SPL/assets/69359027/af5035b2-ed58-45f9-9665-fe1fc3d26d27">
 
+### 2.3 distinct count
 
-## 3.9 eval UC 3 (case)
 ```
-index=main sourcetype="access_combined_wcookie" 
-| eval CATEGORY = case(status >= 500, "Server Error", status >=400, "Client Erorr", status = 200, "OKAY", 1=1, "N/A")
+index=botsv1 sourcetype="fgt_traffic"  srccountry!="Reserved" dstport=23
+| stats dc(srccountry) as "Distinct Countries"
 ```
-<img width="1769" alt="image" src="https://user-images.githubusercontent.com/69359027/221839768-cb01b9e4-7259-44c2-a501-e34d1a492db1.png">
+<img width="760" alt="image" src="https://github.com/chirag99969/SPL/assets/69359027/d96cbdf4-ad6f-4f3c-afe2-4a67999d20bd">
 
-## 3.10 eval UC 4 (string concatenation)
+### 2.4 max min count avg
+
 ```
-index=main sourcetype="access_combined_wcookie" 
-| eval itemProduct = itemId."/".productId
+index=botsv1 sourcetype="fgt_traffic"  srccountry!="Reserved" src_ip=40.80.148.42
+| stats count max(bytes) as max_bytes, min(bytes) as min_bytes, avg(bytes) as avg_bytes
+| eval avg_bytes= round(avg_bytes,2)
 ```
-<img width="1470" alt="image" src="https://user-images.githubusercontent.com/69359027/221842102-a8e6a39e-bf8e-49b5-aea9-19e1ec014683.png">
 
+<img width="1755" alt="image" src="https://github.com/chirag99969/SPL/assets/69359027/69528ae6-e570-4ddb-b56f-1962692bba0c">
 
-# 3 timechart
+### 2.4 stats with BY clause
 
-## 3.11 chart
 ```
-index=main sourcetype="access_combined_wcookie" 
-|  chart count by action status
+index=botsv1 sourcetype=win* EventCode=4624 Account_Name="bob.smith"
+| stats count by user, host
 ```
-<img width="1782" alt="image" src="https://user-images.githubusercontent.com/69359027/221845296-834653d6-ace4-4ab8-be6a-8dc12fef476d.png">
+<img width="1755" alt="image" src="https://github.com/chirag99969/SPL/assets/69359027/2e1c0229-98a3-4fdb-b4b4-f66b3d4a55c2">
 
-## 3.12 timchart UC1
-```
-index=main sourcetype="secure-2" "Failed password"
-| timechart count
-```
-<img width="1779" alt="image" src="https://user-images.githubusercontent.com/69359027/221845938-13c4b8dc-db4c-49e5-85a9-09e9b5d0e7f4.png">
+### 2.5 stats list function (all occurrences)
 
-## 3.13 timechart UC 2 (timewrap) multiple time frames
 ```
-index=_internal log_level=WARN 
-| timechart count  span=1h 
-| timewrap 1d
-```
-<img width="1790" alt="image" src="https://user-images.githubusercontent.com/69359027/221848136-4cc572fa-a7a7-4d09-ad9a-3696c8d3c880.png">
+index=botsv1 sourcetype=win* EventCode=4624 
+ | stats list(Account_Name) as users
+ ```
+ <img width="840" alt="image" src="https://github.com/chirag99969/SPL/assets/69359027/58fc46eb-1e0d-41c0-be2e-bea20da6f5d9">
 
-# 4 Fields and fields extraction 
+### 2.6 stats values function (unique occurences)
+```
+index=botsv1 sourcetype=win* EventCode=4624 
+ | stats values(Account_Name) as users
+ ```
+ <img width="659" alt="image" src="https://github.com/chirag99969/SPL/assets/69359027/05595826-1a8e-4fa8-ac39-849392e796d3">
 
-## 4.1 Using time fields
+### 2.7 stats command values and dictinct count function 
 ```
-index=main sourcetype="access_combined_wcookie" action=purchase date_wday IN (saturday, sunday) 
-| stats count by date_hour
-| sort date_hour 
-| rename date_hour as "Hour of the day", count as "No of purchases"
+index=botsv1 sourcetype=win* EventCode=4624 
+ | stats values(Account_Name) as users dc(Account_Name) as "Distinct Users"
 ```
-<img width="1788" alt="image" src="https://user-images.githubusercontent.com/69359027/221855205-ada3902d-72fe-4e94-b0ea-91bf94128781.png">
+<img width="1751" alt="image" src="https://github.com/chirag99969/SPL/assets/69359027/626db0a1-8b37-42ae-a09f-65d1565cd86e">
 
-## 4.2 Using the field extraction wizard
-* Demo
-
-## 4.3 Using rex command
-
-### 4.3.1 rex command
-
+### 2.8 stats values fuction and by clause (successful login by hosts)
 ```
-index=main sourcetype="secure-2"
-| rex "from (?<IP_ADDRESS>\d{1,3}.\d{1,3}.\d{1,3}.\d{1,3}")
+index=botsv1 earliest=0 sourcetype=wineventlog* EventCode=4624
+| stats count values(Account_Name) as users by host
 ```
-<img width="1536" alt="image" src="https://user-images.githubusercontent.com/69359027/222475147-6494ecb8-7408-4d6e-a316-138d4d655444.png">
+<img width="1751" alt="image" src="https://github.com/chirag99969/SPL/assets/69359027/9557a9fc-2122-4c64-8986-9458c55980e2">
 
-### 4.3.2 rex command
+### 2.9 Stats command first function
 
 ```
-index=main sourcetype="secure-2"
-| rex "from (?<IP_ADDRESS>[\S]+)"
+index=botsv1 sourcetype="fortigate_traffic"  dstip=71.39.18.122
+|        stats first(srcip) as first_attack
 ```
+<img width="976" alt="image" src="https://github.com/chirag99969/SPL/assets/69359027/237520d9-7f69-45c7-b492-3a3599e35f19">
 
-### 4.3.3 iplocation
+### 2.10 convert command ctime function
 
 ```
-index=main sourcetype="secure-2"
-| rex "from (?<IP_ADDRESS>[\S]+)"
-| search IP_ADDRESS=*
-| iplocation IP_ADDRESS
-| stats count by Country
+index=botsv1 sourcetype=fortigate_traffic dstip=71.39.18.122 src_ip=188.243.155.61
+| stats earliest(_time) as first_attack_time
+| convert ctime(first_attack_time)
 ```
-
-<img width="1418" alt="image" src="https://user-images.githubusercontent.com/69359027/222476021-cb77f49c-2d56-49fd-a23e-07bb02359f97.png">
+<img width="783" alt="image" src="https://github.com/chirag99969/SPL/assets/69359027/c9b77dcd-23a3-4187-a50f-77f138c6d4b5">
 
-### 4.3.4 geostats
+### 2.11 eval command along with stats
 
 ```
-index=main sourcetype="secure-2"
-| rex "from (?<IP_ADDRESS>[\S]+)"
-| search IP_ADDRESS=*
-| iplocation IP_ADDRESS
-| geostats count by Region
+index=botsv1 sourcetype=iis
+| stats count(eval(sc_status==200)) as successes count(eval(sc_status>200)) as failures
+| eval ratio=round(successes/failures, 1)
 ```
+<img width="1766" alt="image" src="https://github.com/chirag99969/SPL/assets/69359027/57e871ac-3396-49a3-b08d-8910f7114076">
 
-<img width="1768" alt="image" src="https://user-images.githubusercontent.com/69359027/222478148-fd9788ef-2ef8-455b-8062-034660cc7e7b.png">
+### 2.12 chart command
 
-
-### 4.3.5 timechart
-
 ```
-index=main sourcetype="secure-2"
-| rex "from (?<IP_ADDRESS>[\S]+)"
-| search IP_ADDRESS=*
-| iplocation IP_ADDRESS
-| timechart count by Country
+index=botsv1 sourcetype=iis
+| chart count by sc_status, c_ip
 ```
-<img width="1764" alt="image" src="https://user-images.githubusercontent.com/69359027/222479068-4152b325-9021-4f86-ad71-818d298e7b30.png">
+<img width="1772" alt="image" src="https://github.com/chirag99969/SPL/assets/69359027/fe9a0ba8-3a80-4f22-a886-580802788ff9">
 
 
-## 5 Grouping Events and using lookup
+### 2.13 timechart command
 
-### 5.1
 ```
-index=main sourcetype="access_combined_wcookie" 
-| transaction JSESSIONID clientip
+index=botsv1 sourcetype=suricata
+| timechart count by status useother=f limit=15 usenull=f
 ```
+<img width="1773" alt="image" src="https://github.com/chirag99969/SPL/assets/69359027/24af9364-37e1-4fa7-ad3b-87b321f6a96f">
 
-### 5.2
-```
-index=main sourcetype="access_combined_wcookie" 
-| transaction JSESSIONID clientip
-| where duration > 7
-```
+### 2.14 addtotals
 
-### 5.3
 ```
-index=main sourcetype="access_combined_wcookie" 
-| transaction JSESSIONID clientip
-| timechart avg(duration) as "Average Session Seconds"
+index=botsv1 sourcetype=fortigate_traffic
+| chart sum(bytes) OVER dstport by srcip useother=f
+| addtotals col=t fieldname="Port Total" labelfield=dstport label="Host Total"
+| fillnull
 ```
+<img width="1773" alt="image" src="https://github.com/chirag99969/SPL/assets/69359027/d3e1d1fd-6195-48a7-89e1-0574166b3a33">
 
-### 5.4
-```
-index=main sourcetype="access_combined_wcookie" 
-| transaction JSESSIONID clientip
-| timechart span=1h avg(duration) as "Average Session Seconds"
-```
-<img width="1773" alt="image" src="https://user-images.githubusercontent.com/69359027/222690767-8bca1672-4ae1-4670-96dc-49c0ed99adbf.png">
+### 2.15 dedup deduplicate
 
-### 5.5
 ```
-index=main sourcetype="access_combined_wcookie" 
-| transaction JSESSIONID clientip
-| stats max(duration) as "Longest Session"
+index=botsv1 sourcetype=wineventlog
+| table _time, action, host, user
+| dedup host, action
 ```
-<img width="989" alt="image" src="https://user-images.githubusercontent.com/69359027/222690525-c0fd14d7-2714-4634-8ada-8618716837b1.png">
+<img width="1767" alt="image" src="https://github.com/chirag99969/SPL/assets/69359027/2d982a72-2e01-46c8-80e6-4065c03a1682">
 
+### 2.16 Join command
 
-### 5.6
 ```
-index=main sourcetype="access_combined_wcookie" 
-| transaction JSESSIONID clientip startswith="action=view" endswith="action=purchase" 
-| stats count  values(action) values(duration) as durat by JSESSIONID _time 
-| sort -durat
+index=botsv1 sourcetype=stream:tcp
+|table _time, dest
+|join dest 
+[ search index=botsv1 sourcetype=fortigate_traffic
+    | stats values(app) as firewall_app by dstip
+    | rename dstip as dest]
+| sort _time
 ```
-<img width="1769" alt="image" src="https://user-images.githubusercontent.com/69359027/222690285-5ac20ea7-4a7a-4963-bca0-5ecc66822ce1.png">
+<img width="1754" alt="image" src="https://github.com/chirag99969/SPL/assets/69359027/c55076b6-f87b-43b8-b571-0ec99363e813">
 
-### 5.7 subsearch Report on itemIds for top productIds (top productIds can always be changing and unpredictable)
-```
-index=main sourcetype="access_combined_wcookie" 
-    [ search sourcetype="access_combined_wcookie" 
-    | top 5 productId 
-    | fields productId ]
-| stats count values(itemId) as itemId by productId
-| eval itemId = mvjoin(itemId, ", ")
-```
-<img width="1783" alt="image" src="https://user-images.githubusercontent.com/69359027/222693774-8f76c2cb-bcb3-422f-95b3-c734552e5147.png">
-
+### 2.17 lookups
 
-### 5.8 append | comparing all yesterday sales with all time sales 
 ```
-index=main sourcetype="access_combined_wcookie" action=purchase categoryId=ARCADE earliest="02/27/2023:00:00:00"
-| stats count as "YESTERDAY Sales"
-| append 
-    [search sourcetype=access_combined_wcookie action=purchase categoryId=ARCADE earliest=1
-    | stats count as "ALL time sales"]
+| inputlookup windows_signatures_860.csv
 ```
-<img width="1786" alt="image" src="https://user-images.githubusercontent.com/69359027/222697345-57430683-3bec-4ed8-98e0-795bee32c6c1.png">
-
-### 5.9 appendcols | overlay the columns 
-```
-index=main sourcetype="access_combined_wcookie" action=purchase categoryId=ARCADE earliest="02/27/2023:00:00:00"
-| stats count as "YESTERDAY Sales"
-| appendcols
-    [search sourcetype=access_combined_wcookie action=purchase categoryId=ARCADE earliest=1
-    | stats count as "ALL time sales"]
-```
-<img width="1786" alt="image" src="https://user-images.githubusercontent.com/69359027/222697902-a07354fb-460c-46a5-9646-eadb97366eb3.png">
-
+<img width="1754" alt="image" src="https://github.com/chirag99969/SPL/assets/69359027/ecefd072-58df-4b73-9eba-9e557aa51e13">
 
-### 5.10 appendpipe | calculating the subtotals
+### 2.18 lookups search
 ```
-index=main sourcetype="access_combined_wcookie" 
-| top 3 itemId by productId showperc=f
-| appendpipe 
-    [ stats sum(count) by productId
-    | eval itemId = "Total of ".productId]
-| sort productId
+| inputlookup windows_signatures_860.csv
+|  search signature_id = 624
 ```
-<img width="1767" alt="image" src="https://user-images.githubusercontent.com/69359027/222703277-6fe3c43d-8bd2-438e-b092-c78ec412d6ad.png">
+<img width="1773" alt="image" src="https://github.com/chirag99969/SPL/assets/69359027/b0c43a08-773b-435d-8129-b45f35bad5fa">
 
-### 5.11 lookup | enriching the data
-```
-index=main sourcetype="access_combined_wcookie" action=purchase
-| top 3 productId showperc=f
-| lookup prices.csv productId
-```
-<img width="1776" alt="image" src="https://user-images.githubusercontent.com/69359027/222708531-3f56b3cf-ddc1-40d2-8494-970eed0aa777.png">
 
+### DDOS host logs | OS logs
 
-### 5.12 outputlookup | inputlookup 
 ```
-index=_internal log_level=ERROR
-| stats count by component
-| sort -count
-| head 10
-| outputlookup components_error.csv
+index=index_name sourcetype=name
+| rex "(?<message>: .*)"
+| rex field=message ": (?<full_message>.*)"
+| search full_message="*gulatic*"
+| table full_message _time
+| timechart count span=6h
 ```
-<img width="1771" alt="image" src="https://user-images.githubusercontent.com/69359027/222709437-dde8e67b-d32b-4111-8c26-bc8cc7dc9e73.png">
-
-# 6 Creating Dashboards
-
-## 6.1 Creating basic dashboards
-* Demo
-
-## 6.2 Configuring Drilldown
-* Demo
-
-## 6.3 Configuring Dropdown
-* Demo 
 
-### time range picker as dropdown menu
 ```
-index=main sourcetype="access_combined_wcookie" action=purchase
-| lookup prices.csv productId 
-| timechart span=1d sum(sale_price) as Total_Revenue
+index=* sourcetype=*
+| rex "(?<message>: .*)"
+| rex field=message ": (?<full_message>.*)"
+| search full_message="*gulatic*"
+| rex field=full_message "(?:(?!\d+\.\d+\.\d+\.\d+).)*(?<ip_address>\d+\.\d+\.\d+\.\d+)"
+| eval ip_address = coalesce(ip, ip_address)
+| iplocation ip_address
+| table full_message _time Country
 ```
 
-### dropdown for products | main search
-
 ```
-index=main sourcetype="access_combined_wcookie" 
-| lookup prices.csv productId 
-| stats sum(sale_price) as Revenue by product_name
-| search product_name = "$tok_product_name$"
-| sort -Revenue
+index=* sourcetype=*
+| rex "(?<message>: .*)"
+| rex field=message ": (?<full_message>.*)"
+| search full_message="Disconnected from invalid user*"
+| rex field=full_message "invalid user (?<username>\S+) (?<ip>\d+\.\d+\.\d+\.\d+) port (?<port>\d+)"
+| dedup username
+| timechart count span=1d
 ```
 
-### dropdown for products | dynamic option | search string
 ```
-index=main sourcetype="access_combined_wcookie" action=purchase
-| lookup prices.csv productId 
-| stats count by product_name
+index=* sourcetype=* source=/tmp/log.tgz:./var/log/auth.*
+|  rex "(?<message>: .*)"
+|  rex field=message ": (?<full_message>.*)"
+| rex field=full_message "port (?<port>\d+) \[(?<action>\w+)\]"
+| rex field=full_message "(?<ip>\d+\.\d+\.\d+\.\d+)"
+| table full_message port ip _time
 ```
-
-  
-
-
-
-
-
