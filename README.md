@@ -1,10 +1,4 @@
 
-# Add-ons to be installed
-
-* Fortinet FortiGate Add-On for Splunk (https://splunkbase.splunk.com/app/2846/)
-* TA for Suricata (https://splunkbase.splunk.com/app/4242/)
-* Splunk Add-on for Stream Wire Data (https://splunkbase.splunk.com/app/5234/)
-* Nessus (https://splunkbase.splunk.com/app/5918/)
 
 ## Listing sourcetypes
 
